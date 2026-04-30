@@ -1,12 +1,13 @@
 import streamlit as st
 import pandas as pd
-from streamlit_gsheets import GSheetsConnection
 
 # Page Config
 st.set_page_config(page_title="JMMMSY Portal - Chatra", layout="wide")
 
-# Google Sheet Link (Aapke screenshot wala link)
-sheet_url = "https://docs.google.com/spreadsheets/d/15YSpwWFlCG6XGXtTRUM6Kn5Cgl6pCFGDL24jWIMb7aI/edit?usp=sharing"
+# Google Sheet CSV Link (Ye link hamesha kaam karta hai)
+# Maine aapki sheet ID use ki hai jo screenshots mein dikh rahi thi
+sheet_id = "15YSpwWFlCG6XGXtTRUM6Kn5Cgl6pCFGDL24jWIMb7aI"
+csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
 
 # Header Design
 st.markdown("""
@@ -17,23 +18,30 @@ st.markdown("""
 
 st.markdown('<div class="header-box"><h1>झारखण्ड मुख्यमंत्री मइयां सम्मान योजना (JMMMSY)</h1><h3>District Administration - Chatra</h3></div>', unsafe_allow_html=True)
 
-try:
-    # Database Connection
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    df = conn.read(spreadsheet=sheet_url, ttl="2m")
-    
-    # Column Names Cleaning
+@st.cache_data(ttl=300) # 5 minute tak data yaad rakhega
+def load_data(url):
+    try:
+        # Seedha CSV format mein read karein (Isme koi extra library nahi chahiye)
+        data = pd.read_csv(url)
+        return data
+    except Exception as e:
+        return None
+
+df = load_data(csv_url)
+
+if df is not None:
+    # Column names saaf karein
     df.columns = df.columns.str.strip()
     
-    # Smart Column Finder (Jo 'Aadhaar' word dhoondh lega)
-    target_col = next((col for col in df.columns if 'Aadhaar' in col or 'Aadhar' in col), None)
+    # Aadhaar column dhoondhein
+    target_col = next((col for col in df.columns if 'Aadhaar' in col or 'Aadhar' in col or 'CrAadhaar' in col), None)
     
     if target_col:
-        # Data clean karna
-        df[target_col] = df[target_col].astype(str).str.replace(r'\s+|\.0$', '', regex=True).str.replace("'", "", regex=False)
+        # Data clean karein
+        df[target_col] = df[target_col].astype(str).str.replace(r'\s+|\.0$', '', regex=True)
         
         st.subheader("Beneficiary Search")
-        search_query = st.text_input("12-digit Aadhaar Number enter karein:")
+        search_query = st.text_input("12-digit Aadhaar Number enter karein:", placeholder="Yahan Aadhaar likhein...")
 
         if st.button("Check Status"):
             if search_query:
@@ -44,14 +52,13 @@ try:
                     st.success("Record Found!")
                     st.dataframe(result, use_container_width=True, hide_index=True)
                 else:
-                    st.error(f"Aadhaar '{clean_query}' ke liye koi record nahi mila.")
+                    st.error(f"Record nahi mila. Kripya check karein.")
             else:
-                st.warning("Kripya search karne ke liye number enter karein.")
+                st.info("Search karne ke liye Aadhaar number enter karein.")
     else:
-        st.error("Sheet mein Aadhaar Number wala column nahi mila. Kripya heading check karein.")
-
-except Exception as e:
-    st.error("Database se connect nahi ho pa raha. Kripya Sheet ki privacy settings check karein.")
+        st.error("Google Sheet mein 'Aadhaar Number' wala column nahi mil raha.")
+else:
+    st.error("Google Sheet se connect nahi ho pa raha. Kripya check karein ki Sheet 'Anyone with the link' par set hai.")
 
 st.markdown("---")
-st.caption("© 2026 District Administration, Chatra | Google Sheets Live Portal")
+st.caption("© 2026 District Administration, Chatra | Live Database Portal")
