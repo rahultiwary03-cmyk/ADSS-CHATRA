@@ -4,10 +4,8 @@ import pandas as pd
 # Page Config
 st.set_page_config(page_title="JMMMSY Portal - Chatra", layout="wide")
 
-# Google Sheet CSV Link (Ye link hamesha kaam karta hai)
-# Maine aapki sheet ID use ki hai jo screenshots mein dikh rahi thi
-sheet_id = "15YSpwWFlCG6XGXtTRUM6Kn5Cgl6pCFGDL24jWIMb7aI"
-csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+# Direct Sheet Link
+sheet_url = "https://docs.google.com/spreadsheets/d/15YSpwWFlCG6XGXtTRUM6Kn5Cgl6pCFGDL24jWIMb7aI/export?format=csv"
 
 # Header Design
 st.markdown("""
@@ -18,47 +16,38 @@ st.markdown("""
 
 st.markdown('<div class="header-box"><h1>झारखण्ड मुख्यमंत्री मइयां सम्मान योजना (JMMMSY)</h1><h3>District Administration - Chatra</h3></div>', unsafe_allow_html=True)
 
-@st.cache_data(ttl=300) # 5 minute tak data yaad rakhega
-def load_data(url):
+@st.cache_data(ttl=60)
+def load_data():
     try:
-        # Seedha CSV format mein read karein (Isme koi extra library nahi chahiye)
-        data = pd.read_csv(url)
-        return data
+        # User-agent bypass karne ke liye (security ke liye)
+        return pd.read_csv(sheet_url)
     except Exception as e:
         return None
 
-df = load_data(csv_url)
+df = load_data()
 
 if df is not None:
-    # Column names saaf karein
     df.columns = df.columns.str.strip()
-    
-    # Aadhaar column dhoondhein
+    # Aadhaar column search logic
     target_col = next((col for col in df.columns if 'Aadhaar' in col or 'Aadhar' in col or 'CrAadhaar' in col), None)
     
     if target_col:
-        # Data clean karein
         df[target_col] = df[target_col].astype(str).str.replace(r'\s+|\.0$', '', regex=True)
         
         st.subheader("Beneficiary Search")
-        search_query = st.text_input("12-digit Aadhaar Number enter karein:", placeholder="Yahan Aadhaar likhein...")
+        search_query = st.text_input("12-digit Aadhaar Number enter karein:")
 
         if st.button("Check Status"):
             if search_query:
-                clean_query = search_query.strip()
-                result = df[df[target_col].str.contains(clean_query, na=False)]
-                
+                result = df[df[target_col].str.contains(search_query.strip(), na=False)]
                 if not result.empty:
                     st.success("Record Found!")
                     st.dataframe(result, use_container_width=True, hide_index=True)
                 else:
-                    st.error(f"Record nahi mila. Kripya check karein.")
+                    st.error("Record nahi mila. Aadhaar number check karein.")
             else:
-                st.info("Search karne ke liye Aadhaar number enter karein.")
+                st.info("Kripya Aadhaar number likhein.")
     else:
-        st.error("Google Sheet mein 'Aadhaar Number' wala column nahi mil raha.")
+        st.error("Aadhaar column nahi mila. Sheet check karein.")
 else:
-    st.error("Google Sheet se connect nahi ho pa raha. Kripya check karein ki Sheet 'Anyone with the link' par set hai.")
-
-st.markdown("---")
-st.caption("© 2026 District Administration, Chatra | Live Database Portal")
+    st.error("Google Sheet se connection fail ho gaya. Sheet ki 'Share' setting check karein.")
