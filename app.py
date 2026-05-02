@@ -2,94 +2,116 @@ import streamlit as st
 import pandas as pd
 
 # Page Configuration
-st.set_page_config(page_title="JMMMSY Chatra Portal", layout="wide", page_icon="🏛️")
-
-# --- DATA SOURCE ---
-SHEET_ID = "15YSpwWFICG6XGXtTRUM6Kn5Cgl6pCfGDL24jWlMb7aI"
-URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
+st.set_page_config(page_title="JMMMSY Chatra Portal", layout="wide")
 
 # Custom CSS for Professional Look
 st.markdown("""
     <style>
-    .main { background-color: #f8f9fa; }
-    .stTextInput > div > div > input { border-radius: 25px; border: 2px solid #1e40af; padding: 10px 20px; }
-    .reportview-container .main .block-container { padding-top: 2rem; }
-    .header-style { background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%); color: white; padding: 30px; border-radius: 15px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 25px; }
-    .card { background-color: white; padding: 20px; border-radius: 10px; border-left: 5px solid #1e40af; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 10px; }
-    .label { color: #6b7280; font-size: 0.9rem; font-weight: bold; text-transform: uppercase; }
-    .value { color: #111827; font-size: 1.1rem; font-weight: 500; margin-bottom: 10px; }
+    .main {
+        background-color: #f8f9fa;
+    }
+    .header-box {
+        background-color: #003399;
+        color: white;
+        padding: 2rem;
+        border-radius: 10px;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .stat-card {
+        background-color: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+    .result-card {
+        background-color: #ffffff;
+        padding: 20px;
+        border-left: 5px solid #003399;
+        border-radius: 5px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        margin-top: 20px;
+    }
+    .stTextInput>div>div>input {
+        border-radius: 20px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# Header Section
-st.markdown("""
-    <div class="header-style">
-        <h1 style='margin:0;'>झारखण्ड मुख्यमंत्री मईयां सम्मान योजना (JMMMSY)</h1>
-        <p style='font-size:1.2rem; opacity:0.9;'>District Administration, Chatra - Payment Status Portal</p>
-    </div>
-    """, unsafe_allow_html=True)
+# Google Sheet Connection (Direct CSV Link)
+SHEET_ID = "15YSpwWFICG6XGXtTRUM6Kn5Cgl6pCfGDL24jWlMb7aI"
+SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600) # 10 minute tak data cache rahega
 def load_data():
     try:
-        df = pd.read_csv(URL)
+        df = pd.read_csv(SHEET_URL)
+        # Data Cleaning: Column names se extra spaces hatana
         df.columns = df.columns.str.strip()
         return df
-    except:
+    except Exception as e:
+        st.error(f"Error connecting to Google Sheets: {e}")
         return None
 
 df = load_data()
 
+# App Header
+st.markdown("""
+    <div class="header-box">
+        <h1>झारखण्ड मुख्यमंत्री मईयां सम्मान योजना (JMMMSY)</h1>
+        <p style='font-size: 1.2rem;'>District Administration, Chatra - Payment Status Portal</p>
+    </div>
+    """, unsafe_allow_html=True)
+
 if df is not None:
-    # Top Stats (Total Records)
+    # Top Stats Row
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Total Registered", len(df))
+        st.markdown(f'<div class="stat-card"><h3>Total Registered</h3><h2 style="color:#003399;">{len(df)}</h2></div>', unsafe_allow_html=True)
     with col2:
-        st.metric("District", "Chatra")
+        st.markdown('<div class="stat-card"><h3>District</h3><h2 style="color:#003399;">Chatra</h2></div>', unsafe_allow_html=True)
     with col3:
-        st.metric("Status", "Active")
+        st.markdown('<div class="stat-card"><h3>Status</h3><h2 style="color:green;">Active</h2></div>', unsafe_allow_html=True)
 
     st.divider()
 
     # Search Section
     st.subheader("🔍 लाभार्थी की स्थिति खोजें (Search Beneficiary Status)")
-    aadhaar_input = st.text_input("", placeholder="अपना 12 अंकों का आधार नंबर दर्ज करें...")
+    search_query = st.text_input("Enter Aadhaar Number / आधार नंबर दर्ज करें", placeholder="12 digit Aadhaar Number...")
 
-    if aadhaar_input:
-        # Searching across Aadhaar column (CrAadhaar Number as per your image)
-        col_name = 'CrAadhaar Number'
-        if col_name in df.columns:
-            result = df[df[col_name].astype(str).str.contains(aadhaar_input.replace(" ", ""))]
-        else:
-            result = df[df.astype(str).apply(lambda x: x.str.contains(aadhaar_input)).any(axis=1)]
+    if search_query:
+        # Aadhaar column ka naam wahi rakha hai jo aapki sheet mein dikh raha hai
+        # Search logic (matches as string to avoid formatting issues)
+        search_query = str(search_query).strip()
+        result = df[df['Aadhaar Numbe'].astype(str).str.contains(search_query, na=False)]
 
         if not result.empty:
             st.success(f"कुल {len(result)} रिकॉर्ड मिले।")
             
-            for i in range(len(result)):
-                row = result.iloc[i]
-                # Card Layout for Results
+            for index, row in result.iterrows():
                 with st.container():
-                    st.markdown(f"""
-                    <div class="card">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                            <div><p class="label">Beneficiary Name</p><p class="value">{row.get('Favoring1', 'N/A')}</p></div>
-                            <div><p class="label">Payment Status</p><p class="value" style="color:red;">{row.get('CreditStatus_PB1', 'N/A')}</p></div>
-                            <div><p class="label">Reason for Failure</p><p class="value">{row.get('BankReasonDescForFailure1', 'N/A')}</p></div>
-                            <div><p class="label">Amount</p><p class="value">₹{row.get('TotalAmount_PB1', '0')}</p></div>
-                            <div><p class="label">Aadhaar Number</p><p class="value">{row.get('CrAadhaar Number', 'N/A')}</p></div>
-                            <div><p class="label">Credited On</p><p class="value">{row.get('CredittedOn_PB', 'N/A')}</p></div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown('<div class="result-card">', unsafe_allow_html=True)
+                    c1, c2 = st.columns(2)
+                    
+                    with c1:
+                        st.write(f"*BENEFICIARY NAME:* {row.get('ApplicantName', 'N/A')}")
+                        st.write(f"*FATHER/HUSBAND NAME:* {row.get('FatherHusbandN', 'N/A')}")
+                        st.write(f"*AADHAAR NUMBER:* {row.get('Aadhaar Numbe', 'N/A')}")
+                        st.write(f"*BANK NAME:* {row.get('BankName', 'N/A')}")
+
+                    with c2:
+                        st.write(f"*PAYMENT STATUS:* :green[SUCCESS]" if row.get('Amount', 0) > 0 else ":red[PENDING]")
+                        st.write(f"*AMOUNT:* ₹{row.get('Amount', 0)}")
+                        st.write(f"*REF NO:* {row.get('MMMSYRefNo', 'N/A')}")
+                        st.write(f"*CATEGORY:* {row.get('Category', 'N/A')}")
+                    
+                    st.markdown('</div>', unsafe_allow_html=True)
         else:
-            st.error("❌ कोई रिकॉर्ड नहीं मिला। कृपया सही आधार नंबर दर्ज करें।")
-    else:
-        st.info("💡 सूचना: विवरण देखने के लिए ऊपर बॉक्स में आधार नंबर लिखें।")
+            st.warning("कोई रिकॉर्ड नहीं मिला। कृपया आधार नंबर चेक करें।")
+
 else:
-    st.error("Database से संपर्क नहीं हो पा रहा है।")
+    st.info("Database load ho raha hai, kripya pratiksha karein...")
 
 # Footer
-st.markdown("---")
-st.markdown("<p style='text-align: center; color: grey;'>Designed for District Administration Chatra | © 2026</p>", unsafe_allow_html=True)
+st.markdown("<br><hr><center><p style='color: grey;'>© 2026 District Administration Chatra | Technical Cell</p></center>", unsafe_allow_html=True)
