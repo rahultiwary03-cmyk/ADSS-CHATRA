@@ -162,4 +162,23 @@ if df is not None:
                     amount = row.get("Amount", "N/A")
                     ref_no = row.get("MMMSYRefNo", "N/A")
                     cpsms_id = row.get("CpsmsId", "N/A")
-                    sanc_
+                    sanc_date = row.get("SanctionDate", "N/A") # <-- Ye line fix kar di gayi hai
+                    category = row.get("Category", "N/A")
+                    
+                    # Exact PAYMENT STATUS logic
+                    raw_status = str(row.get("PAYMENT STATUS", "Pending")).strip()
+                    # Agar status mein 'Success', 'Paid' ya 'Credited' hai toh green, warna red
+                    if raw_status.lower() in ["success", "paid", "credited", "approved"]:
+                        status_html = f"<span class='success-text'>{raw_status}</span>"
+                    else:
+                        status_html = f"<span class='error-text'>{raw_status}</span>"
+
+                    # Mask Aadhaar for security
+                    masked_aadhaar = f"XXXXXXXX{aadhaar[-4:]}" if len(aadhaar) >= 4 else aadhaar
+
+                    # Result Card HTML
+                    st.markdown(f"""
+                        <div class="beneficiary-card">
+                            <div class="section-title">👤 Beneficiary Details (लाभार्थी का विवरण)</div>
+                            
+                            <div style='display: flex; flex-wrap: wrap; gap: 30px;'>
