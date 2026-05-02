@@ -5,7 +5,7 @@ import pandas as pd
 st.set_page_config(page_title="JMMMSY Portal - Chatra", layout="wide")
 
 # Ye aapki sheet ka direct CSV link hai
-SHEET_ID = "15YSpwWFlCG6XGXtTRUM6Kn5Cgl6pCFGDL24jWIMb7aI"
+SHEET_ID = "https://docs.google.com/spreadsheets/d/15YSpwWFICG6XGXtTRUM6Kn5Cgl6pCfGDL24jWlMb7aI/edit?usp=sharing"
 URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv"
 
 # Header Design
