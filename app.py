@@ -3,162 +3,143 @@ import pandas as pd
 import time
 
 # 1. Page Configuration
-st.set_page_config(page_title="JMMSY Official Portal", layout="wide", page_icon="🏛️")
+st.set_page_config(page_title="JMMSY | Official Portal", layout="wide", page_icon="🏛️")
 
-# 2. Advanced Premium CSS (Professional Gov Dashboard)
+# 2. Custom Professional CSS (Official Government UI)
 st.markdown("""
     <style>
-    .stApp {
-        background: linear-gradient(135deg, #eef2f3 0%, #8e9eab 100%);
-    }
-    /* Banner Header */
-    .banner {
-        background: linear-gradient(90deg, #002e5d 0%, #00509d 100%);
+    .stApp { background-color: #f4f7f9; }
+    
+    /* Header Banner */
+    .gov-header {
+        background: linear-gradient(135deg, #002e5d 0%, #004a99 100%);
         color: white;
         padding: 40px;
         text-align: center;
-        border-radius: 0 0 40px 40px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        margin-bottom: 40px;
-        border-bottom: 6px solid #ff9933;
+        border-radius: 0 0 30px 30px;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        margin-bottom: 30px;
+        border-bottom: 5px solid #ff9933;
     }
-    /* Stats Cards */
-    .stat-box {
-        background: rgba(255, 255, 255, 0.9);
-        padding: 20px;
-        border-radius: 15px;
-        text-align: center;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        border-top: 5px solid #002e5d;
-    }
-    /* Result Card Detail Styling */
-    .card-container {
+    
+    /* Result Container */
+    .status-card {
         background: white;
-        padding: 35px;
-        border-radius: 25px;
-        box-shadow: 0 15px 45px rgba(0,0,0,0.12);
+        padding: 30px;
+        border-radius: 20px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+        border: 1px solid #e1e4e8;
         margin-top: 20px;
-        border: 1px solid #ddd;
-        animation: fadeInUp 0.8s ease-in-out;
+        animation: fadeIn 0.6s ease-in-out;
     }
-    @keyframes fadeInUp {
-        from { opacity: 0; transform: translateY(30px); }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
         to { opacity: 1; transform: translateY(0); }
     }
-    .label { color: #555; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; margin-bottom: 5px; }
-    .data-val { color: #002e5d; font-size: 1.15rem; font-weight: 700; margin-bottom: 20px; background: #f9f9f9; padding: 10px; border-radius: 8px; border-left: 5px solid #ff9933; }
+
+    /* Labels and Values */
+    .detail-label { color: #6c757d; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; margin-bottom: 3px; }
+    .detail-value { color: #1a1a1a; font-size: 1.1rem; font-weight: 700; margin-bottom: 15px; background: #f8f9fa; padding: 10px; border-radius: 8px; border-left: 5px solid #002e5d; }
     
     /* Search Button */
     .stButton>button {
-        background: linear-gradient(to right, #002e5d, #00509d) !important;
+        background: #002e5d !important;
         color: white !important;
-        border-radius: 12px !important;
-        height: 55px !important;
-        font-weight: bold !important;
+        border-radius: 10px !important;
+        height: 50px !important;
         width: 100%;
-        font-size: 1.1rem !important;
-        border: none !important;
+        font-weight: bold !important;
+        transition: 0.3s;
     }
-    .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    }
+    .stButton>button:hover { background: #ff9933 !important; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Official Banner
+# 3. Official Header
 st.markdown("""
-    <div class='banner'>
+    <div class='gov-header'>
         <h1 style='margin:0;'>झारखण्ड मुख्यमंत्री मईयां सम्मान योजना (JMMSY)</h1>
-        <p style='font-size: 1.3rem; opacity: 0.9;'>ज़िला प्रशासन, चतरा - आधिकारिक लाभार्थी सत्यापन एवं भुगतान पोर्टल</p>
+        <p style='font-size: 1.2rem; opacity: 0.9;'>ज़िला प्रशासन, चतरा - आधिकारिक लाभार्थी सत्यापन पोर्टल</p>
     </div>
     """, unsafe_allow_html=True)
 
-# 4. Data Retrieval
+# 4. Data Loading Logic
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1fApqqsNEulpVsPH7O0IAMRvQv39DMYkV2PB_kg3qntg/export?format=csv"
 
 @st.cache_data(ttl=60)
-def get_data():
+def load_official_data():
     try:
         df = pd.read_csv(SHEET_URL)
-        df.columns = df.columns.str.strip()
+        df.columns = df.columns.str.strip() # Clear extra spaces from headers
         return df
-    except Exception:
+    except:
         return None
 
-df = get_data()
+df = load_official_data()
 
-# 5. Dashboard Stats Row
-s1, s2, s3, s4 = st.columns(4)
-with s1: st.markdown("<div class='stat-box'><small>District</small><h3>चतरा</h3></div>", unsafe_allow_html=True)
-with s2: st.markdown("<div class='stat-box'><small>Status</small><h3>LIVE</h3></div>", unsafe_allow_html=True)
-with s3: st.markdown("<div class='stat-box'><small>WCD</small><h3>Jharkhand</h3></div>", unsafe_allow_html=True)
-with s4: st.markdown("<div class='stat-box'><small>Update</small><h3>Real-time</h3></div>", unsafe_allow_html=True)
+# 5. Search Area
+_, mid_col, _ = st.columns([1, 2, 1])
+with mid_col:
+    st.markdown("<h3 style='text-align: center; color: #002e5d;'>🔍 आधार नंबर दर्ज करें</h3>", unsafe_allow_html=True)
+    user_input = st.text_input("Aadhar", placeholder="12 Digit Aadhaar Number", label_visibility="collapsed")
+    search_btn = st.button("स्टेटस चेक करें")
 
-st.write("")
-
-# 6. Search Interface
-_, search_area, _ = st.columns([1, 2, 1])
-with search_area:
-    st.markdown("<h3 style='text-align: center; color: #002e5d;'>🔍 लाभार्थी की स्थिति जांचें</h3>", unsafe_allow_html=True)
-    user_input = st.text_input("Aadhar", placeholder="अपना 12 अंकों का आधार नंबर यहाँ दर्ज करें...", label_visibility="collapsed")
-    search_click = st.button("सत्यापन करें")
-
-# 7. Search Logic & Detailed Card
-if (search_click or user_input) and user_input:
+# 6. Result Processing Logic
+if (search_btn or user_input) and user_input:
     if df is not None:
         # User input cleanup
-        uid_input = str(user_input).replace(" ", "")
+        clean_aadhar = str(user_input).replace(" ", "")
         
-        # Mapping Column E (Aadhaar Number)
-        target_col = 'Aadhaar Number' if 'Aadhaar Number' in df.columns else df.columns[4]
+        # Exact Column from Sheet (Aadhaar Number is usually Col E)
+        search_col = 'Aadhaar Number' if 'Aadhaar Number' in df.columns else df.columns[4]
         
-        # Flexible match (Removing spaces from sheet data too)
-        df['temp_match'] = df[target_col].astype(str).str.replace(" ", "").str.replace(".0", "", regex=False)
+        # Handle decimal/space in sheet
+        df['temp_key'] = df[search_col].astype(str).str.replace(" ", "").str.replace(".0", "", regex=False)
         
-        match = df[df['temp_match'] == uid_input].copy()
+        match = df[df['temp_key'] == clean_aadhar].copy()
         
         if not match.empty:
-            with st.spinner('डेटाबेस से जानकारी मिलान की जा रही है...'):
+            with st.spinner('सत्यापन किया जा रहा है...'):
                 time.sleep(0.5)
             
-            row = match.iloc[0]
+            res = match.iloc[0]
             
-            # Formatting Masked Data
-            def mask_acc(val):
-                v = str(val).replace('.0', '').strip()
-                return f"XXXXXX{v[-4:]}" if len(v) > 4 else v
-
-            # --- Result Card Display ---
-            st.markdown("<div class='card-container'>", unsafe_allow_html=True)
-            st.markdown("<h2 style='text-align:center; color:#002e5d; border-bottom:2px solid #eee; padding-bottom:15px;'>✅ सत्यापित लाभार्थी विवरण</h2>", unsafe_allow_html=True)
+            # --- Result Card ---
+            st.markdown("<div class='status-card'>", unsafe_allow_html=True)
+            st.markdown(f"<h2 style='text-align:center; color:#002e5d; margin-bottom:30px;'>✅ सत्यापित लाभार्थी विवरण</h2>", unsafe_allow_html=True)
             
-            res_c1, res_c2, res_c3 = st.columns(3)
+            c1, c2, c3 = st.columns(3)
             
-            with res_c1:
-                st.markdown(f"<div class='label'>लाभार्थी का नाम</div><div class='data-val'>{row.get('Applicant', 'N/A')}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='label'>ज़िला / प्रखंड</div><div class='data-val'>{row.get('District', 'Chatra')} / {row.get('Block', 'N/A')}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='label'>आधार संख्या</div><div class='data-val'>XXXX-XXXX-{uid_input[-4:]}</div>", unsafe_allow_html=True)
+            with c1:
+                st.markdown(f"<div class='detail-label'>लाभार्थी का नाम</div><div class='detail-value'>{res.get('Applicant', 'N/A')}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='detail-label'>ज़िला</div><div class='detail-value'>{res.get('District', 'Chatra')}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='detail-label'>प्रखंड (Block)</div><div class='detail-value'>{res.get('Block', 'N/A')}</div>", unsafe_allow_html=True)
 
-            with res_c2:
-                st.markdown(f"<div class='label'>पिता/पति का नाम</div><div class='data-val'>{row.get(\"Father's/Husband Name\", 'N/A')}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='label'>पंचायत / गांव</div><div class='data-val'>{row.get('Panchayat', 'N/A')} / {row.get('Village', 'N/A')}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='label'>PDS STATUS</div><div class='data-val' style='color:#002e5d;'>{row.get('PDS_Status', 'N/A')}</div>", unsafe_allow_html=True)
+            with c2:
+                # Use \ for escaping apostrophe in Father's/Husband Name
+                f_name = res.get("Father's/Husband Name", 'N/A')
+                st.markdown(f"<div class='detail-label'>पिता/पति का नाम</div><div class='detail-value'>{f_name}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='detail-label'>पंचायत / गांव</div><div class='detail-value'>{res.get('Panchayat', 'N/A')} / {res.get('Village', 'N/A')}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='detail-label'>बैंक का नाम</div><div class='detail-value'>{res.get('BankName', 'N/A')}</div>", unsafe_allow_html=True)
 
-            with res_c3:
-                # PAYMENT STATUS Logic from Column R/S
-                p_status = row.get('PAYMENT STATUS', row.get('Payment Status', 'N/A'))
-                clr = "#28a745" if "success" in str(p_status).lower() or "paid" in str(p_status).lower() else "#d32f2f"
+            with c3:
+                acc_raw = str(res.get('Account Number', 'N/A')).replace('.0', '').strip()
+                pds_status = res.get('PDS_Status', 'N/A')
+                pay_status = res.get('PAYMENT STATUS', res.get('Payment Status', 'N/A'))
                 
-                st.markdown(f"<div class='label'>बैंक का नाम</div><div class='data-val'>{row.get('BankName', 'N/A')}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='label'>खाता संख्या</div><div class='data-val'>{mask_acc(row.get('Account Number', 'N/A'))}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='label'>भुगतान की स्थिति</div><div class='data-val' style='color:{clr}; border-left: 5px solid {clr};'>{p_status}</div>", unsafe_allow_html=True)
+                # Dynamic Color
+                pay_color = "#28a745" if "success" in str(pay_status).lower() or "paid" in str(pay_status).lower() else "#d32f2f"
+                
+                st.markdown(f"<div class='detail-label'>खाता संख्या</div><div class='detail-value'>XXXXXX{acc_raw[-4:] if len(acc_raw)>4 else acc_raw}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='detail-label'>PDS STATUS</div><div class='detail-value' style='color:#002e5d;'>{pds_status}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='detail-label'>PAYMENT STATUS</div><div class='detail-value' style='color:{pay_color}; border-left:5px solid {pay_color};'>{pay_status}</div>", unsafe_allow_html=True)
             
             st.markdown("</div>", unsafe_allow_html=True)
         else:
-            st.error("❌ आधार नंबर रिकॉर्ड में नहीं मिला। कृपया पुनः जाँचें।")
+            st.error("❌ आधार नंबर रिकॉर्ड में नहीं मिला।")
     else:
-        st.error("डेटाबेस लोड नहीं हो सका। कृपया इंटरनेट या लिंक जाँचें।")
+        st.error("डेटाबेस लोड नहीं हो सका।")
 
-# 8. Official Footer
-st.markdown("<br><br><center style='color:#666; font-size:0.8rem;'>NIC Jharkhand | District Administration Chatra Official Portal</center>", unsafe_allow_html=True)
+# 7. Footer
+st.markdown("<br><br><center style='color:#777;'>NIC Jharkhand | District Administration Chatra Official Portal</center>", unsafe_allow_html=True)
