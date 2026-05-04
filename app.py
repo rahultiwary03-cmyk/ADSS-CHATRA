@@ -134,4 +134,35 @@ if search_btn and aadhar_input:
             # Masking logic
             def mask_val(v):
                 v_str = str(v).replace('.0', '').strip()
-                return f"XXXXXXX{v_str[-4
+                return f"XXXXXXX{v_str[-4:]}" if len(v_str) > 4 else v_str
+
+            st.markdown("<div class='result-container'>", unsafe_allow_html=True)
+            st.success("✅ लाभार्थी का विवरण सफलतापूर्वक मिल गया है!")
+            
+            # Custom 2-Column layout for Result Card
+            res1, res2 = st.columns(2)
+            with res1:
+                st.markdown(f"<p class='label'>लाभार्थी का नाम</p><p class='value'>{row.get('Name', 'N/A')}</p>", unsafe_allow_html=True)
+                st.markdown(f<p class='label'>आधार संख्या</p><p class='value'>{'XXXX-XXXX-' + clean_input[-4:]}</p>", unsafe_allow_html=True)
+                st.markdown(f"<p class='label'>ज़िला</p><p class='value'>चतरा</p>", unsafe_allow_html=True)
+
+            with res2:
+                # Bank account details masking
+                acc_no = row.get('Account Number', row.get('AccountNo', 'N/A'))
+                st.markdown(f"<p class='label'>बैंक खाता संख्या</p><p class='value'>{mask_val(acc_no)}</p>", unsafe_allow_html=True)
+                st.markdown(f"<p class='label'>IFSC कोड</p><p class='value'>{row.get('IfscCode', 'N/A')}</p>", unsafe_allow_html=True)
+                st.markdown(f"<p class='label'>भुगतान की स्थिति</p><p class='value' style='color:#28a745;'>सफल (Success)</p>", unsafe_allow_html=True)
+            
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            st.error("❌ यह आधार नंबर डेटाबेस में उपलब्ध नहीं है। कृपया सही नंबर दर्ज करें।")
+    else:
+        st.error("⚠️ सिस्टम डेटा लोड करने में असमर्थ है। कृपया इंटरनेट कनेक्शन जाँचें।")
+
+# 7. Official Footer
+st.markdown("""
+    <div style='margin-top: 100px; padding: 20px; border-top: 1px solid #ddd; text-align: center; color: #777;'>
+        <p>National Informatics Centre (NIC) द्वारा समर्थित | ज़िला प्रशासन चतरा, झारखण्ड</p>
+        <p style='font-size: 0.8rem;'>यह पोर्टल केवल सूचना के उद्देश्य से बनाया गया है।</p>
+    </div>
+    """, unsafe_allow_html=True)
