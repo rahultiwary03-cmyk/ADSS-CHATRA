@@ -1,59 +1,39 @@
 import streamlit as st
 import pandas as pd
 
-# 1. Page Configuration & Professional Styling
+# 1. Page Configuration & Styling
 st.set_page_config(page_title="JMMSY Chatra Portal", layout="wide", page_icon="🏛️")
 
-# Custom CSS for a professional "Dashboard" look
 st.markdown("""
     <style>
-    /* Background color */
-    .stApp {
-        background-color: #f4f7f9;
-    }
-    /* Main Header */
+    .stApp { background-color: #f8f9fa; }
     .main-header {
-        background: linear-gradient(90deg, #1c49a6 0%, #2a5fc1 100%);
-        color: white;
-        padding: 30px;
-        text-align: center;
-        border-radius: 0px 0px 15px 15px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        margin-bottom: 25px;
+        background: linear-gradient(90deg, #074799 0%, #001A6E 100%);
+        color: white; padding: 25px; text-align: center;
+        border-radius: 0 0 20px 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        margin-bottom: 30px;
     }
-    /* Statistics Card */
-    .stat-card {
-        background-color: white;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        text-align: center;
-        border-top: 4px solid #1c49a6;
+    .stat-box {
+        background: white; padding: 20px; border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08); text-align: center;
+        border-bottom: 5px solid #074799;
     }
-    /* Data Table Styling */
-    .stDataFrame {
-        border: 1px solid #e6e9ef;
-        border-radius: 10px;
-    }
-    /* Footer */
-    .footer {
-        text-align: center;
-        color: #888;
-        padding: 20px;
-        font-size: 12px;
+    .result-card {
+        background: white; padding: 20px; border-radius: 10px;
+        border-left: 5px solid #28a745; margin-top: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Top Banner Header
+# 2. Header
 st.markdown("""
     <div class='main-header'>
-        <h1 style='margin:0;'>झारखण्ड मुख्यमंत्री मईयां सम्मान योजना (JMMSY)</h1>
-        <p style='font-size:1.2rem; opacity:0.9;'>ज़िला प्रशासन, चतरा - भुगतान स्थिति पोर्टल</p>
+        <h1 style='margin:0; font-family: sans-serif;'>झारखण्ड मुख्यमंत्री मईयां सम्मान योजना (JMMSY)</h1>
+        <p style='font-size:1.1rem; opacity:0.8;'>ज़िला प्रशासन, चतरा - भुगतान स्थिति खोजें</p>
     </div>
     """, unsafe_allow_html=True)
 
-# 3. Google Sheet Data Loading Logic
+# 3. Data Loading (Direct from Google Sheet)
 sheet_id = "1fApqqsNEulpVsPH7O0IAMRvQv39DMYkV2PB_kg3qntg"
 sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
 
@@ -61,77 +41,66 @@ sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=cs
 def load_data():
     try:
         df = pd.read_csv(sheet_url)
-        df.columns = df.columns.str.strip() # Headers saaf karne ke liye
+        df.columns = df.columns.str.strip()
         return df
-    except Exception as e:
+    except:
         return None
 
 df = load_data()
 
-# 4. Statistics Row (Professional Cards)
+# 4. Dashboard Stats
 c1, c2, c3 = st.columns(3)
-with c1:
-    st.markdown("<div class='stat-card'><small>कुल लाभार्थी</small><h3>1,89,174</h3></div>", unsafe_allow_html=True)
-with c2:
-    st.markdown("<div class='stat-card'><small>ज़िला</small><h3>चतरा (CHATRA)</h3></div>", unsafe_allow_html=True)
-with c3:
-    st.markdown("<div class='stat-card'><small>पोर्टल स्थिति</small><h3 style='color:green;'>● सक्रिय (Live)</h3></div>", unsafe_allow_html=True)
+with c1: st.markdown("<div class='stat-box'><small>कुल लाभार्थी</small><h2>1,89,174</h2></div>", unsafe_allow_html=True)
+with c2: st.markdown("<div class='stat-box'><small>ज़िला</small><h2>चतरा (CHATRA)</h2></div>", unsafe_allow_html=True)
+with c3: st.markdown("<div class='stat-box'><small>पोर्टल स्थिति</small><h2 style='color:green;'>● LIVE</h2></div>", unsafe_allow_html=True)
 
-st.write("---")
+st.write("")
 
-# 5. Search Section
-st.subheader("🔍 लाभार्थी खोजें (Beneficiary Search)")
-col_left, col_right = st.columns([2, 1])
+# 5. Search Interface
+st.subheader("🔍 लाभार्थी की स्थिति जांचें")
+search_input = st.text_input("आधार नंबर दर्ज करें:", placeholder="12 अंकों का आधार नंबर लिखें...")
 
-with col_left:
-    aadhar_input = st.text_input("आधार नंबर दर्ज करें (12 अंक):", placeholder="XXXXXXXX8724")
+# Account Number Masking Function
+def mask_acc(val):
+    s = str(val).strip().replace('.0', '')
+    return f"XXXXXX{s[-4:]}" if len(s) > 4 else s
 
-# Masking Function (Account Number chupane ke liye)
-def mask_account(acc_no):
-    acc_str = str(acc_no).strip()
-    if len(acc_str) > 4:
-        return "XXXXXX" + acc_str[-4:]
-    return acc_str
-
-# Search Logic
-if st.button("स्टेटस चेक करें") or aadhar_input:
-    if aadhar_input:
-        if df is not None:
-            # Column identification (Aadhar search ke liye)
-            search_col = 'Aadhar Number' if 'Aadhar Number' in df.columns else df.columns[2] # Fallback to 3rd column
+if st.button("स्टेटas चेक करें") or search_input:
+    if search_input and df is not None:
+        # Aadhaar Column ki pehchaan (Sheet ke hisab se 'Aadhaar Number' ya 'Aadhar Number')
+        col_name = 'Aadhaar Number' if 'Aadhaar Number' in df.columns else 'Aadhar Number'
+        
+        if col_name in df.columns:
+            # --- CRITICAL FIX FOR SPACES ---
+            # Input se space hatayein
+            clean_input = str(search_input).replace(" ", "")
             
-            # Cleaning data for search
-            df[search_col] = df[search_col].astype(str).str.replace('.0', '', regex=False).str.strip()
+            # Dataframe ke column se bhi temporary space hatakar match karein
+            # Hum ek temporary column banayenge matching ke liye
+            df['match_key'] = df[col_name].astype(str).str.replace(" ", "").str.replace(".0", "", regex=False)
             
-            result = df[df[search_col] == aadhar_input.strip()].copy()
+            result = df[df['match_key'] == clean_input].copy()
             
             if not result.empty:
-                st.success("✅ Record Mil Gaya!")
+                st.markdown("<div class='result-card'>", unsafe_allow_html=True)
+                st.success("✅ लाभार्थी का विवरण मिल गया है")
                 
-                # --- ACCOUNT NUMBER MASKING ---
-                # Check karein ki aapki sheet mein 'IfscCode' ya 'Account' column kahan hai
-                # Maan lete hain column ka naam 'IfscCode' ke paas wala hai ya niche image ke hisab se:
-                if 'IfscCode' in result.columns:
-                    # Agar account number kisi specific column mein hai (e.g., 'AccountNo')
-                    # Yahan main sirf display ke liye result ko modify kar raha hoon
-                    for col in result.columns:
-                        if 'account' in col.lower() or 'no' in col.lower():
-                            result[col] = result[col].apply(mask_account)
+                # Masking columns (Bank A/c details)
+                # Agar column ka naam BankName ya Account hai toh mask karein
+                for col in result.columns:
+                    if 'account' in col.lower() or 'no' in col.lower():
+                        if col != 'match_key' and col != col_name:
+                             result[col] = result[col].apply(mask_acc)
                 
-                # Result ko display karna
-                st.dataframe(result, use_container_width=True, hide_index=True)
+                # Cleanup and Display
+                final_display = result.drop(columns=['match_key'])
+                st.dataframe(final_display, use_container_width=True, hide_index=True)
+                st.markdown("</div>", unsafe_allow_html=True)
             else:
-                st.error("❌ Maafi chahte hain, ye Aadhaar number record mein nahi mila.")
+                st.error("❌ यह आधार नंबर डेटाबेस में नहीं मिला। कृपया नंबर जांचें।")
         else:
-            st.error("Data load nahi ho paya. Kripya connection check karein.")
-    else:
-        st.info("Kripya search karne ke liye Aadhaar number upar box mein likhein.")
+            st.error("Sheet Error: Aadhaar column nahi mila.")
+    elif df is None:
+        st.error("Google Sheet se sampark nahi ho pa raha hai.")
 
-# 6. Footer
-st.markdown("""
-    <div class='footer'>
-        <hr>
-        © 2024 District Administration, Chatra. Designed for Secure Beneficiary Verification.<br>
-        Digital India Initiative | Government of Jharkhand
-    </div>
-    """, unsafe_allow_html=True)
+st.markdown("<br><hr><center style='color:grey;'>Digital India Initiative | District Administration Chatra</center>", unsafe_allow_html=True)
