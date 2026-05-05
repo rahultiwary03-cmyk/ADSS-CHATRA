@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
-import re
 
 # 1. पेज कॉन्फ़िगरेशन
 st.set_page_config(page_title="JMMMSY Chatra Portal", layout="wide")
 
-# 2. Session State Initialize (सुरक्षा के लिए)
+# 2. Session State Initialize
 if "search_result" not in st.session_state:
     st.session_state.search_result = None
 if "show_status" not in st.session_state:
@@ -18,7 +17,9 @@ sheet_url = "https://docs.google.com/spreadsheets/d/15YSpwWFICG6XGXtTRUM6Kn5Cgl6
 def load_data():
     try:
         data = pd.read_csv(sheet_url)
-        # डुप्लीकेट कॉलम को हटाना ताकि कोई एरर न आए
+        # 🌟 सबसे बड़ा फिक्स: शीट के कॉलम से स्पेस, एंटर, स्लैश सब हटाकर सिर्फ छोटे अक्षर (lowercase) रखना
+        # जैसे: "Father's/Husband \n Name" अपने आप "fathershusbandname" बन जाएगा।
+        data.columns = data.columns.str.replace(r'[^a-zA-Z0-9]', '', regex=True).str.lower()
         data = data.loc[:, ~data.columns.duplicated()]
         return data
     except Exception as e:
@@ -45,7 +46,7 @@ st.markdown("""
     
     .status-card { padding: 30px; border-radius: 15px; text-align: center; margin-top: 25px; color: white; font-size: 2.2rem; font-weight: bold; box-shadow: 0 10px 20px rgba(0,0,0,0.3); border: 4px solid white;}
     
-    /* 🔥 'View Payment Status' वाले बटन को बहुत बड़ा और रंगीन बनाना */
+    /* 🔥 जादुई CSS: 'View Payment Status' वाले बटन को बहुत बड़ा और रंगीन बनाना */
     button[kind="primary"] {
         background: linear-gradient(90deg, #ff416c 0%, #ff4b2b 100%) !important;
         color: white !important;
@@ -87,48 +88,39 @@ aadhar_input = st.text_input("12 अंकों का आधार नंब�
 if st.button("डाटा खोजें (Search)"):
     if aadhar_input and df is not None:
         
-        # 🛡️ आधार कॉलम की स्पेलिंग (Aadhar, Aadhaar) दोनों को हैंडल करना
-        target_col = None
-        for col in df.columns:
-            clean_name = re.sub(r'[^a-zA-Z0-9]', '', str(col)).lower()
-            if 'aadhar' in clean_name or 'aadhaar' in clean_name or 'adhar' in clean_name:
-                target_col = col
-                break
+        # आधार कॉलम (aadhaarnumber) खोजना
+        target_col = 'aadhaarnumber' if 'aadhaarnumber' in df.columns else 'aadharnumber' if 'aadharnumber' in df.columns else None
         
         if target_col:
-            search_series = df[target_col].astype(str).str.replace('.0', '', regex=False).str.strip()
-            match = df[search_series == aadhar_input]
+            df[target_col] = df[target_col].astype(str).str.replace('.0', '', regex=False).str.strip()
+            match = df[df[target_col] == aadhar_input]
 
             if not match.empty:
                 st.success("🎉 रिकॉर्ड मिल गया!")
-                row = match.iloc[0]
                 
-                # 🛡️ सेफ वैल्यू फ़ेचर
-                def get_safe_val(keywords):
-                    for col in df.columns:
-                        clean_c = re.sub(r'[^a-zA-Z0-9]', '', str(col)).lower()
-                        for kw in keywords:
-                            if kw in clean_c:
-                                val = row[col]
-                                if pd.isna(val) or str(val).strip() == '': return "N/A"
-                                return str(val).strip()
-                    return "N/A"
+                # डेटा को डिक्शनरी में बदलना
+                row = match.iloc[0].to_dict()
+                
+                # N/A से बचने का फंक्शन
+                def get_val(key):
+                    val = row.get(key)
+                    return str(val).strip() if pd.notna(val) and str(val).strip() != '' else "N/A"
 
                 st.session_state.search_result = {
-                    'name': get_safe_val(['applicantname', 'beneficiaryname', 'name']),
-                    'father': get_safe_val(['fathershusbandname', 'fathername', 'husbandname']),
-                    'dob': get_safe_val(['dateofbirth', 'dob']),
-                    'age': get_safe_val(['currentage', 'age']),
-                    'category': get_safe_val(['category']),
-                    'district': get_safe_val(['district']),
-                    'bank': get_safe_val(['bankname', 'bank']),
-                    'acc': get_safe_val(['accountno', 'accountnumber']),
-                    'ifsc': get_safe_val(['ifsccode', 'ifsc']),
-                    'amount': get_safe_val(['amount']),
-                    'sanction_date': get_safe_val(['sanctiondate', 'date']),
-                    'sanction_no': get_safe_val(['sanctionno']),
-                    'ref_no': get_safe_val(['mmmsyrefno', 'refno']),
-                    'status': get_safe_val(['paymentstatus', 'status']).upper()
+                    'name': get_val('applicantname'),
+                    'father': get_val('fathershusbandname'),
+                    'dob': get_val('dateofbirth'),
+                    'age': get_val('age'),
+                    'category': get_val('category'),
+                    'district': get_val('district'),
+                    'bank': get_val('bankname'),
+                    'acc': get_val('accountno'),
+                    'ifsc': get_val('ifsccode'),
+                    'amount': get_val('amount'),
+                    'sanction_date': get_val('sanctiondate'),
+                    'sanction_no': get_val('sanctionno'),
+                    'ref_no': get_val('mmmsyrefno'),
+                    'status': get_val('paymentstatus').upper()
                 }
                 st.session_state.show_status = False
             else:
@@ -136,72 +128,57 @@ if st.button("डाटा खोजें (Search)"):
                 st.session_state.search_result = None
         else:
             st.error("शीट में आधार कॉलम नहीं मिला।")
-            st.session_state.search_result = None
     else:
         st.warning("कृपया आधार नंबर दर्ज करें।")
 
-# 7. रिजल्ट डिस्प्ले (Crash-Proof)
+# 7. रिजल्ट डिस्प्ले (HTML Rendering Fix के साथ)
 if st.session_state.search_result is not None:
     res = st.session_state.search_result
     
-    # 💡 KeyError से बचने के लिए `.get()` का इस्तेमाल
-    name = res.get('name', 'N/A')
-    father = res.get('father', 'N/A')
-    district = res.get('district', 'N/A')
-    category = res.get('category', 'N/A')
-    dob = res.get('dob', 'N/A')
-    age = res.get('age', 'N/A')
-    ref_no = res.get('ref_no', 'N/A')
-    bank = res.get('bank', 'N/A')
-    acc = res.get('acc', 'N/A')
-    ifsc = res.get('ifsc', 'N/A')
-    amount = res.get('amount', 'N/A')
-    sanction_date = res.get('sanction_date', 'N/A')
-    sanction_no = res.get('sanction_no', 'N/A')
-    status_val = res.get('status', 'PENDING')
+    # 🌟 HTML Fix: मैंने यहाँ सभी खाली लाइनों को हटा दिया है ताकि कोड टेक्स्ट में न बदले!
+    html_str = (
+        f'<div class="result-card">'
+        f'<div class="section-title">👤 व्यक्तिगत विवरण (Personal Details)</div>'
+        f'<div style="display: flex; flex-wrap: wrap; gap: 40px; margin-bottom: 40px;">'
+        f'<div style="flex: 1; min-width: 250px;">'
+        f'<div class="detail-label">लाभार्थी का नाम</div><div class="detail-value">{res["name"]}</div>'
+        f'<div class="detail-label">पिता/पति का नाम</div><div class="detail-value">{res["father"]}</div>'
+        f'<div class="detail-label">ज़िला / श्रेणी</div><div class="detail-value">{res["district"]} / {res["category"]}</div>'
+        f'</div>'
+        f'<div style="flex: 1; min-width: 250px;">'
+        f'<div class="detail-label">जन्म तिथि (DOB)</div><div class="detail-value">{res["dob"]}</div>'
+        f'<div class="detail-label">उम्र (Age)</div><div class="detail-value">{res["age"]}</div>'
+        f'<div class="detail-label">MMMSY Ref No</div><div class="detail-value">{res["ref_no"]}</div>'
+        f'</div>'
+        f'</div>'
+        f'<div class="section-title">🏦 बैंक एवं स्वीकृति विवरण (Bank Details)</div>'
+        f'<div style="display: flex; flex-wrap: wrap; gap: 40px;">'
+        f'<div style="flex: 1; min-width: 250px;">'
+        f'<div class="detail-label">बैंक का नाम</div><div class="detail-value">{res["bank"]}</div>'
+        f'<div class="detail-label">खाता संख्या (Account No)</div><div class="detail-value">{res["acc"]}</div>'
+        f'<div class="detail-label">IFSC कोड</div><div class="detail-value">{res["ifsc"]}</div>'
+        f'</div>'
+        f'<div style="flex: 1; min-width: 250px;">'
+        f'<div class="detail-label">भुगतान राशि</div><div class="detail-value">₹ {res["amount"]}</div>'
+        f'<div class="detail-label">स्वीकृति तिथि (Sanction Date)</div><div class="detail-value">{res["sanction_date"]}</div>'
+        f'<div class="detail-label">Sanction No</div><div class="detail-value">{res["sanction_no"]}</div>'
+        f'</div>'
+        f'</div>'
+        f'</div>'
+    )
     
-    st.markdown(f"""
-    <div class="result-card">
-        <div class="section-title">👤 व्यक्तिगत विवरण (Personal Details)</div>
-        <div style="display: flex; flex-wrap: wrap; gap: 40px; margin-bottom: 40px;">
-            <div style="flex: 1; min-width: 250px;">
-                <div class="detail-label">लाभार्थी का नाम</div><div class="detail-value">{name}</div>
-                <div class="detail-label">पिता/पति का नाम</div><div class="detail-value">{father}</div>
-                <div class="detail-label">ज़िला / श्रेणी</div><div class="detail-value">{district} / {category}</div>
-            </div>
-            <div style="flex: 1; min-width: 250px;">
-                <div class="detail-label">जन्म तिथि (DOB)</div><div class="detail-value">{dob}</div>
-                <div class="detail-label">उम्र (Age)</div><div class="detail-value">{age}</div>
-                <div class="detail-label">MMMSY Ref No</div><div class="detail-value">{ref_no}</div>
-            </div>
-        </div>
-
-        <div class="section-title">🏦 बैंक एवं स्वीकृति विवरण (Bank Details)</div>
-        <div style="display: flex; flex-wrap: wrap; gap: 40px;">
-            <div style="flex: 1; min-width: 250px;">
-                <div class="detail-label">बैंक का नाम</div><div class="detail-value">{bank}</div>
-                <div class="detail-label">खाता संख्या (Account No)</div><div class="detail-value">{acc}</div>
-                <div class="detail-label">IFSC कोड</div><div class="detail-value">{ifsc}</div>
-            </div>
-            <div style="flex: 1; min-width: 250px;">
-                <div class="detail-label">भुगतान राशि</div><div class="detail-value">₹ {amount}</div>
-                <div class="detail-label">स्वीकृति तिथि (Sanction Date)</div><div class="detail-value">{sanction_date}</div>
-                <div class="detail-label">Sanction No</div><div class="detail-value">{sanction_no}</div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
+    st.markdown(html_str, unsafe_allow_html=True)
     st.write("<br>", unsafe_allow_html=True)
     
-    # 💳 विशाल पेमेंट बटन 
+    # 💳 विशाल पेमेंट बटन
     col1, col2, col3 = st.columns([1,3,1])
     with col2:
         if st.button("💳 वर्तमान भुगतान स्थिति देखें (View Payment Status)", type="primary", use_container_width=True):
             st.session_state.show_status = True
             
-    # स्टेटस कार्ड 
+    # स्टेटस कार्ड
     if st.session_state.show_status:
+        status_val = res['status']
         if "SUCCESS" in status_val or "VERIFIED" in status_val:
             bg_color = "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)"
         elif "FAIL" in status_val or "BLOCK" in status_val or "FROZEN" in status_val:
