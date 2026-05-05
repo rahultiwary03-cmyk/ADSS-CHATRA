@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
+import re
 
 # 1. पेज कॉन्फ़िगरेशन
 st.set_page_config(page_title="JMMMSY Chatra Portal", layout="wide")
 
-# 2. Session State Initialize (ताकि डेटा सुरक्षित रहे और क्रैश न हो)
+# 2. Session State Initialize
 if "search_result" not in st.session_state:
     st.session_state.search_result = None
 if "show_status" not in st.session_state:
@@ -17,8 +18,6 @@ sheet_url = "https://docs.google.com/spreadsheets/d/15YSpwWFICG6XGXtTRUM6Kn5Cgl6
 def load_data():
     try:
         data = pd.read_csv(sheet_url)
-        # सुरक्षा के लिए कॉलम के आगे-पीछे के अदृश्य स्पेस हटाना
-        data.columns = data.columns.str.strip()
         return data
     except Exception as e:
         return None
@@ -44,7 +43,7 @@ st.markdown("""
     
     .status-card { padding: 30px; border-radius: 15px; text-align: center; margin-top: 25px; color: white; font-size: 2.2rem; font-weight: bold; box-shadow: 0 10px 20px rgba(0,0,0,0.3); border: 4px solid white;}
     
-    /* 🔥 जादुई CSS: 'View Payment Status' वाले बटन को बहुत बड़ा और रंगीन बनाना */
+    /* 🔥 'View Payment Status' वाले बटन को बहुत बड़ा और रंगीन बनाना */
     button[kind="primary"] {
         background: linear-gradient(90deg, #ff416c 0%, #ff4b2b 100%) !important;
         color: white !important;
@@ -86,76 +85,89 @@ aadhar_input = st.text_input("12 अंकों का आधार नंब�
 if st.button("डाटा खोजें (Search)"):
     if aadhar_input and df is not None:
         
-        # आपकी शीट के सटीक कॉलम का नाम
-        target_col = 'AadhaarNumber'
+        # 🛡️ 100% बुलेटप्रूफ कॉलम फाइंडर
+        target_col = None
+        for col in df.columns:
+            clean_name = re.sub(r'[^a-zA-Z0-9]', '', str(col)).lower()
+            if 'aadhar' in clean_name or 'aadhaar' in clean_name:
+                target_col = col
+                break
         
-        if target_col in df.columns:
-            # सर्च मैचिंग
-            df['temp_aadhar'] = df[target_col].astype(str).str.replace('.0', '', regex=False).str.strip()
-            match = df[df['temp_aadhar'] == aadhar_input]
+        if target_col:
+            # सर्च
+            search_series = df[target_col].astype(str).str.replace('.0', '', regex=False).str.strip()
+            match = df[search_series == aadhar_input]
 
             if not match.empty:
                 st.success("🎉 रिकॉर्ड मिल गया!")
                 row = match.iloc[0]
                 
-                # डेटा को सुरक्षित तरीके से निकालना (जो स्पेस आपने हटाए हैं, उन्हीं नामों का इस्तेमाल)
+                # 🛡️ किसी भी स्पेलिंग मिस्टेक या स्पेस को इग्नोर करने वाला फंक्शन
+                def get_val(keywords):
+                    for col in df.columns:
+                        clean_c = re.sub(r'[^a-zA-Z0-9]', '', str(col)).lower()
+                        for kw in keywords:
+                            if kw in clean_c:
+                                val = row[col]
+                                return str(val).strip() if pd.notna(val) and str(val).strip() != '' else "N/A"
+                    return "N/A"
+
                 st.session_state.search_result = {
-                    'name': str(row.get('ApplicantName', 'N/A')),
-                    'father': str(row.get("Father's/HusbandName", 'N/A')),
-                    'dob': str(row.get('DateOfBirth', 'N/A')),
-                    'age': str(row.get('Age', 'N/A')),
-                    'category': str(row.get('Category', 'N/A')),
-                    'district': str(row.get('District', 'N/A')),
-                    'bank': str(row.get('BankName', 'N/A')),
-                    'acc': str(row.get('AccountNo', 'N/A')),
-                    'ifsc': str(row.get('IfscCode', 'N/A')),
-                    'amount': str(row.get('Amount', 'N/A')),
-                    'sanction_date': str(row.get('SanctionDate', 'N/A')),
-                    'sanction_no': str(row.get('SanctionNo', 'N/A')),
-                    'ref_no': str(row.get('MMMSYRefNo', 'N/A')),
-                    'status': str(row.get('PAYMENTSTATUS', 'PENDING')).upper()
+                    'name': get_val(['applicant', 'beneficiary', 'name']),
+                    'father': get_val(['father', 'husband']),
+                    'dob': get_val(['dob', 'dateofbirth', 'birth']),
+                    'age': get_val(['age', 'currentage']),
+                    'category': get_val(['category']),
+                    'district': get_val(['district']),
+                    'bank': get_val(['bank']),
+                    'acc': get_val(['account']),
+                    'ifsc': get_val(['ifsc']),
+                    'amount': get_val(['amount']),
+                    'sanction_date': get_val(['sanctiondate', 'date']),
+                    'sanction_no': get_val(['sanctionno']),
+                    'ref_no': get_val(['refno', 'mmmsy']),
+                    'status': get_val(['paymentstatus', 'status']).upper()
                 }
                 st.session_state.show_status = False
             else:
                 st.error("कोई रिकॉर्ड नहीं मिला।")
                 st.session_state.search_result = None
         else:
-            st.error(f"शीट में '{target_col}' कॉलम नहीं मिला। उपलब्ध कॉलम: {', '.join(df.columns)}")
+            st.error("शीट में आधार कॉलम नहीं मिला।")
             st.session_state.search_result = None
     else:
         st.warning("कृपया आधार नंबर दर्ज करें।")
 
-# 7. रिजल्ट डिस्प्ले (Strictly Error-Free HTML)
+# 7. रिजल्ट डिस्प्ले 
 if st.session_state.search_result is not None:
     res = st.session_state.search_result
     
-    # HTML स्ट्रिंग को बिना खाली लाइन के बनाना ताकि कोड टेक्स्ट में न बदले और .get() से KeyError न आए
     html_content = (
         f'<div class="result-card">'
         f'<div class="section-title">👤 व्यक्तिगत विवरण (Personal Details)</div>'
         f'<div style="display: flex; flex-wrap: wrap; gap: 40px; margin-bottom: 40px;">'
         f'<div style="flex: 1; min-width: 250px;">'
-        f'<div class="detail-label">लाभार्थी का नाम</div><div class="detail-value">{res.get("name", "N/A")}</div>'
-        f'<div class="detail-label">पिता/पति का नाम</div><div class="detail-value">{res.get("father", "N/A")}</div>'
-        f'<div class="detail-label">ज़िला / श्रेणी</div><div class="detail-value">{res.get("district", "N/A")} / {res.get("category", "N/A")}</div>'
+        f'<div class="detail-label">लाभार्थी का नाम</div><div class="detail-value">{res["name"]}</div>'
+        f'<div class="detail-label">पिता/पति का नाम</div><div class="detail-value">{res["father"]}</div>'
+        f'<div class="detail-label">ज़िला / श्रेणी</div><div class="detail-value">{res["district"]} / {res["category"]}</div>'
         f'</div>'
         f'<div style="flex: 1; min-width: 250px;">'
-        f'<div class="detail-label">जन्म तिथि (DOB)</div><div class="detail-value">{res.get("dob", "N/A")}</div>'
-        f'<div class="detail-label">उम्र (Age)</div><div class="detail-value">{res.get("age", "N/A")}</div>'
-        f'<div class="detail-label">MMMSY Ref No</div><div class="detail-value">{res.get("ref_no", "N/A")}</div>'
+        f'<div class="detail-label">जन्म तिथि (DOB)</div><div class="detail-value">{res["dob"]}</div>'
+        f'<div class="detail-label">उम्र (Age)</div><div class="detail-value">{res["age"]}</div>'
+        f'<div class="detail-label">MMMSY Ref No</div><div class="detail-value">{res["ref_no"]}</div>'
         f'</div>'
         f'</div>'
         f'<div class="section-title">🏦 बैंक एवं स्वीकृति विवरण (Bank Details)</div>'
         f'<div style="display: flex; flex-wrap: wrap; gap: 40px;">'
         f'<div style="flex: 1; min-width: 250px;">'
-        f'<div class="detail-label">बैंक का नाम</div><div class="detail-value">{res.get("bank", "N/A")}</div>'
-        f'<div class="detail-label">खाता संख्या (Account No)</div><div class="detail-value">{res.get("acc", "N/A")}</div>'
-        f'<div class="detail-label">IFSC कोड</div><div class="detail-value">{res.get("ifsc", "N/A")}</div>'
+        f'<div class="detail-label">बैंक का नाम</div><div class="detail-value">{res["bank"]}</div>'
+        f'<div class="detail-label">खाता संख्या (Account No)</div><div class="detail-value">{res["acc"]}</div>'
+        f'<div class="detail-label">IFSC कोड</div><div class="detail-value">{res["ifsc"]}</div>'
         f'</div>'
         f'<div style="flex: 1; min-width: 250px;">'
-        f'<div class="detail-label">भुगतान राशि</div><div class="detail-value">₹ {res.get("amount", "N/A")}</div>'
-        f'<div class="detail-label">स्वीकृति तिथि (Sanction Date)</div><div class="detail-value">{res.get("sanction_date", "N/A")}</div>'
-        f'<div class="detail-label">Sanction No</div><div class="detail-value">{res.get("sanction_no", "N/A")}</div>'
+        f'<div class="detail-label">भुगतान राशि</div><div class="detail-value">₹ {res["amount"]}</div>'
+        f'<div class="detail-label">स्वीकृति तिथि (Sanction Date)</div><div class="detail-value">{res["sanction_date"]}</div>'
+        f'<div class="detail-label">Sanction No</div><div class="detail-value">{res["sanction_no"]}</div>'
         f'</div>'
         f'</div>'
         f'</div>'
@@ -172,7 +184,7 @@ if st.session_state.search_result is not None:
             
     # स्टेटस कार्ड
     if st.session_state.show_status:
-        status_val = res.get('status', 'PENDING')
+        status_val = res['status']
         if "SUCCESS" in status_val or "VERIFIED" in status_val:
             bg_color = "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)"
         elif "FAIL" in status_val or "BLOCK" in status_val or "FROZEN" in status_val:
