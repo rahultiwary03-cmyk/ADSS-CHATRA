@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
-import re
 
 # 1. पेज कॉन्फ़िगरेशन
 st.set_page_config(page_title="JMMMSY Chatra Portal", layout="wide")
 
-# 2. Session State Initialize
+# 2. Session State Initialize (ताकि डेटा सुरक्षित रहे)
 if "search_result" not in st.session_state:
     st.session_state.search_result = None
 if "show_status" not in st.session_state:
@@ -18,6 +17,9 @@ sheet_url = "https://docs.google.com/spreadsheets/d/15YSpwWFICG6XGXtTRUM6Kn5Cgl6
 def load_data():
     try:
         data = pd.read_csv(sheet_url)
+        # 🌟 फिक्स: सारे कॉलम के नामों को पूरी तरह साफ (lowercase, no spaces) करना
+        data.columns = data.columns.str.replace(r'[^a-zA-Z0-9]', '', regex=True).str.lower()
+        data = data.loc[:, ~data.columns.duplicated()]
         return data
     except Exception as e:
         return None
@@ -43,7 +45,7 @@ st.markdown("""
     
     .status-card { padding: 30px; border-radius: 15px; text-align: center; margin-top: 25px; color: white; font-size: 2.2rem; font-weight: bold; box-shadow: 0 10px 20px rgba(0,0,0,0.3); border: 4px solid white;}
     
-    /* 🔥 'View Payment Status' वाले बटन को बहुत बड़ा और रंगीन बनाना */
+    /* 🔥 'View Payment Status' वाले प्राइमरी बटन को विशाल और रंगीन बनाना */
     button[kind="primary"] {
         background: linear-gradient(90deg, #ff416c 0%, #ff4b2b 100%) !important;
         color: white !important;
@@ -85,48 +87,40 @@ aadhar_input = st.text_input("12 अंकों का आधार नंब�
 if st.button("डाटा खोजें (Search)"):
     if aadhar_input and df is not None:
         
-        # 🛡️ 100% बुलेटप्रूफ कॉलम फाइंडर
-        target_col = None
-        for col in df.columns:
-            clean_name = re.sub(r'[^a-zA-Z0-9]', '', str(col)).lower()
-            if 'aadhar' in clean_name or 'aadhaar' in clean_name:
-                target_col = col
-                break
+        # 'aadhaarnumber' कॉलम को टारगेट करना
+        target_col = 'aadhaarnumber'
         
-        if target_col:
-            # सर्च
-            search_series = df[target_col].astype(str).str.replace('.0', '', regex=False).str.strip()
-            match = df[search_series == aadhar_input]
+        if target_col in df.columns:
+            df['temp_aadhar'] = df[target_col].astype(str).str.replace('.0', '', regex=False).str.strip()
+            match = df[df['temp_aadhar'] == aadhar_input]
 
             if not match.empty:
                 st.success("🎉 रिकॉर्ड मिल गया!")
-                row = match.iloc[0]
                 
-                # 🛡️ किसी भी स्पेलिंग मिस्टेक या स्पेस को इग्नोर करने वाला फंक्शन
-                def get_val(keywords):
-                    for col in df.columns:
-                        clean_c = re.sub(r'[^a-zA-Z0-9]', '', str(col)).lower()
-                        for kw in keywords:
-                            if kw in clean_c:
-                                val = row[col]
-                                return str(val).strip() if pd.notna(val) and str(val).strip() != '' else "N/A"
-                    return "N/A"
+                # डेटा को डिक्शनरी में बदलना
+                row = match.iloc[0].to_dict()
+                
+                # N/A से बचने का फंक्शन
+                def get_val(key):
+                    val = row.get(key)
+                    return str(val).strip() if pd.notna(val) and str(val).strip() != '' else "N/A"
 
+                # 🌟 फिक्स: PDSStatus को इग्नोर करके सीधे सटीक कॉलम से डेटा लेना
                 st.session_state.search_result = {
-                    'name': get_val(['applicant', 'beneficiary', 'name']),
-                    'father': get_val(['father', 'husband']),
-                    'dob': get_val(['dob', 'dateofbirth', 'birth']),
-                    'age': get_val(['age', 'currentage']),
-                    'category': get_val(['category']),
-                    'district': get_val(['district']),
-                    'bank': get_val(['bank']),
-                    'acc': get_val(['account']),
-                    'ifsc': get_val(['ifsc']),
-                    'amount': get_val(['amount']),
-                    'sanction_date': get_val(['sanctiondate', 'date']),
-                    'sanction_no': get_val(['sanctionno']),
-                    'ref_no': get_val(['refno', 'mmmsy']),
-                    'status': get_val(['paymentstatus', 'status']).upper()
+                    'name': get_val('applicantname'),
+                    'father': get_val('fathershusbandname'),
+                    'dob': get_val('dateofbirth'),
+                    'age': get_val('age'),
+                    'category': get_val('category'),
+                    'district': get_val('district'),
+                    'bank': get_val('bankname'),
+                    'acc': get_val('accountno'),
+                    'ifsc': get_val('ifsccode'),
+                    'amount': get_val('amount'),
+                    'sanction_date': get_val('sanctiondate'),
+                    'sanction_no': get_val('sanctionno'),
+                    'ref_no': get_val('mmmsyrefno'),
+                    'status': get_val('paymentstatus').upper() # PDS Status अब कभी नहीं आएगा
                 }
                 st.session_state.show_status = False
             else:
@@ -134,11 +128,10 @@ if st.button("डाटा खोजें (Search)"):
                 st.session_state.search_result = None
         else:
             st.error("शीट में आधार कॉलम नहीं मिला।")
-            st.session_state.search_result = None
     else:
         st.warning("कृपया आधार नंबर दर्ज करें।")
 
-# 7. रिजल्ट डिस्प्ले 
+# 7. रिजल्ट डिस्प्ले (Strictly HTML safe)
 if st.session_state.search_result is not None:
     res = st.session_state.search_result
     
