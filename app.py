@@ -5,7 +5,7 @@ import re
 # 1. पेज कॉन्फ़िगरेशन
 st.set_page_config(page_title="JMMMSY Chatra Portal", layout="wide")
 
-# 2. Session State Initialize (ताकि बटन क्लिक करने पर पेज रिफ्रेश न हो)
+# 2. Session State Initialize
 if "search_result" not in st.session_state:
     st.session_state.search_result = None
 if "show_status" not in st.session_state:
@@ -18,9 +18,8 @@ sheet_url = "https://docs.google.com/spreadsheets/d/15YSpwWFICG6XGXtTRUM6Kn5Cgl6
 def load_data():
     try:
         data = pd.read_csv(sheet_url)
-        # 💡 सबसे महत्वपूर्ण फिक्स: कॉलम के नाम से हर तरह का स्पेस और लाइन ब्रेक हटाना
-        data.columns = data.columns.astype(str).str.replace('\n', ' ', regex=False).str.replace('\r', '', regex=False).str.strip()
-        data.columns = [re.sub(r'\s+', ' ', c) for c in data.columns]
+        # डुप्लीकेट कॉलम को हटाना ताकि कोई एरर न आए
+        data = data.loc[:, ~data.columns.duplicated()]
         return data
     except Exception as e:
         return None
@@ -46,7 +45,7 @@ st.markdown("""
     
     .status-card { padding: 30px; border-radius: 15px; text-align: center; margin-top: 25px; color: white; font-size: 2.2rem; font-weight: bold; box-shadow: 0 10px 20px rgba(0,0,0,0.3); border: 4px solid white;}
     
-    /* 🔥 जादुई CSS: 'View Payment Status' वाले प्राइमरी बटन को बहुत बड़ा और रंगीन बनाना */
+    /* 🔥 जादुई CSS: 'View Payment Status' वाले बटन को बहुत बड़ा और रंगीन बनाना */
     button[kind="primary"] {
         background: linear-gradient(90deg, #ff416c 0%, #ff4b2b 100%) !important;
         color: white !important;
@@ -85,64 +84,71 @@ st.markdown("""
 st.markdown("<h2 style='color:#1A2980;'>🔍 लाभार्थी की स्थिति जांचें</h2>", unsafe_allow_html=True)
 aadhar_input = st.text_input("12 अंकों का आधार नंबर दर्ज करें:", max_chars=12).strip()
 
-# सर्च बटन (Normal / Secondary Button)
 if st.button("डाटा खोजें (Search)"):
     if aadhar_input and df is not None:
         
-        # कॉलम के नामों को पूरी तरह साफ करना (ताकि मिलान में गलती न हो)
-        def clean_col(text): return re.sub(r'[^a-zA-Z0-9]', '', str(text)).lower()
-        row_dict_list = []
-        
-        target_col = next((c for c in df.columns if 'aadhaar' in clean_col(c) or 'aadhar' in clean_col(c)), None)
+        # 🛡️ 100% सेफ कॉलम फाइंडर
+        target_col = None
+        for col in df.columns:
+            clean_name = re.sub(r'[^a-zA-Z0-9]', '', str(col)).lower()
+            if 'aadhar' in clean_name:
+                target_col = col
+                break
         
         if target_col:
-            df[target_col] = df[target_col].astype(str).str.replace('.0', '', regex=False).str.strip()
-            match = df[df[target_col] == aadhar_input]
+            try:
+                # सर्च मैचिंग (बिना KeyError के)
+                df['temp_search'] = df[target_col].astype(str).str.replace('.0', '', regex=False).str.strip()
+                match = df[df['temp_search'] == aadhar_input]
 
-            if not match.empty:
-                st.success("🎉 रिकॉर्ड मिल गया!")
-                
-                # डेटा को सुरक्षित निकालना
-                res_row = match.iloc[0]
-                cleaned_row = {clean_col(k): v for k, v in res_row.items()}
-                
-                def get_val(keys):
-                    for k in keys:
-                        if k in cleaned_row:
-                            val = cleaned_row[k]
-                            return str(val).strip() if pd.notna(val) and str(val).strip() != '' else "N/A"
-                    return "N/A"
+                if not match.empty:
+                    st.success("🎉 रिकॉर्ड मिल गया!")
+                    row = match.iloc[0]
+                    
+                    # 🛡️ नया और सबसे सुरक्षित डेटा निकालने का तरीका (Direct Fetch)
+                    def get_safe_val(keywords):
+                        for col in df.columns:
+                            clean_c = re.sub(r'[^a-zA-Z0-9]', '', str(col)).lower()
+                            for kw in keywords:
+                                if kw in clean_c:
+                                    val = row[col]
+                                    if pd.isna(val) or str(val).strip() == '':
+                                        return "N/A"
+                                    return str(val).strip()
+                        return "N/A"
 
-                st.session_state.search_result = {
-                    'name': get_val(['applicantname', 'beneficiaryname']),
-                    'father': get_val(['fathershusbandname', 'fathername']),
-                    'dob': get_val(['dateofbirth', 'dob']),
-                    'age': get_val(['age', 'currentage']),
-                    'category': get_val(['category']),
-                    'district': get_val(['district']),
-                    'bank': get_val(['bankname']),
-                    'acc': get_val(['accountno', 'accountnumber']),
-                    'ifsc': get_val(['ifsccode', 'ifsc']),
-                    'amount': get_val(['amount']),
-                    'sanction_date': get_val(['sanctiondate']),
-                    'sanction_no': get_val(['sanctionno']),
-                    'ref_no': get_val(['mmmsyrefno']),
-                    'status': get_val(['paymentstatus', 'status']).upper()
-                }
-                st.session_state.show_status = False # नया सर्च होने पर स्टेटस छुपा दें
-            else:
-                st.error("कोई रिकॉर्ड नहीं मिला।")
-                st.session_state.search_result = None
+                    # सभी वैल्यूज़ को सेशन में सेव करना
+                    st.session_state.search_result = {
+                        'name': get_safe_val(['applicant', 'beneficiary']),
+                        'father': get_safe_val(['father', 'husband']),
+                        'dob': get_safe_val(['dob', 'birth']),
+                        'age': get_safe_val(['age']),
+                        'category': get_safe_val(['category']),
+                        'district': get_safe_val(['district']),
+                        'bank': get_safe_val(['bank']),
+                        'acc': get_safe_val(['account']),
+                        'ifsc': get_safe_val(['ifsc']),
+                        'amount': get_safe_val(['amount']),
+                        'sanction_date': get_safe_val(['sanctiondate', 'date']),
+                        'sanction_no': get_safe_val(['sanctionno']),
+                        'ref_no': get_safe_val(['refno', 'mmmsy']),
+                        'status': get_safe_val(['paymentstatus', 'status']).upper()
+                    }
+                    st.session_state.show_status = False
+                else:
+                    st.error("कोई रिकॉर्ड नहीं मिला।")
+                    st.session_state.search_result = None
+            except Exception as e:
+                st.error(f"Error fetching data: {e}")
         else:
             st.error("शीट में आधार कॉलम नहीं मिला।")
     else:
         st.warning("कृपया आधार नंबर दर्ज करें।")
 
-# 7. रिजल्ट और सभी कॉलम का डिस्प्ले
+# 7. रिजल्ट डिस्प्ले
 if st.session_state.search_result is not None:
     res = st.session_state.search_result
     
-    # 🌟 पूरा डेटा डिस्प्ले
     st.markdown(f"""
     <div class="result-card">
         <div class="section-title">👤 व्यक्तिगत विवरण (Personal Details)</div>
@@ -177,13 +183,13 @@ if st.session_state.search_result is not None:
     
     st.write("<br>", unsafe_allow_html=True)
     
-    # 💳 विशाल (Huge) पेमेंट बटन (इसे type="primary" दिया है ताकि CSS इस पर काम करे)
+    # 💳 विशाल पेमेंट बटन 
     col1, col2, col3 = st.columns([1,3,1])
     with col2:
         if st.button("💳 वर्तमान भुगतान स्थिति देखें (View Payment Status)", type="primary", use_container_width=True):
             st.session_state.show_status = True
             
-    # बटन क्लिक होने के बाद स्टेटस दिखाएं
+    # स्टेटस कार्ड 
     if st.session_state.show_status:
         status_val = res['status']
         if "SUCCESS" in status_val or "VERIFIED" in status_val:
