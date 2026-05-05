@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
+import re
 
 # 1. पेज कॉन्फ़िगरेशन
 st.set_page_config(page_title="JMMMSY Chatra Portal", layout="wide")
 
-# 2. Session State Initialize (ताकि डेटा सुरक्षित रहे)
+# 2. Session State Initialize
 if "search_result" not in st.session_state:
     st.session_state.search_result = None
 if "show_status" not in st.session_state:
@@ -17,7 +18,7 @@ sheet_url = "https://docs.google.com/spreadsheets/d/15YSpwWFICG6XGXtTRUM6Kn5Cgl6
 def load_data():
     try:
         data = pd.read_csv(sheet_url)
-        # 🌟 फिक्स: सारे कॉलम के नामों को पूरी तरह साफ (lowercase, no spaces) करना
+        # 🌟 फिक्स: कॉलम के नामों से सारे स्पेस और स्पेशल कैरेक्टर हटाकर लोअरकेस करना
         data.columns = data.columns.str.replace(r'[^a-zA-Z0-9]', '', regex=True).str.lower()
         data = data.loc[:, ~data.columns.duplicated()]
         return data
@@ -45,7 +46,7 @@ st.markdown("""
     
     .status-card { padding: 30px; border-radius: 15px; text-align: center; margin-top: 25px; color: white; font-size: 2.2rem; font-weight: bold; box-shadow: 0 10px 20px rgba(0,0,0,0.3); border: 4px solid white;}
     
-    /* 🔥 'View Payment Status' वाले प्राइमरी बटन को विशाल और रंगीन बनाना */
+    /* 🔥 जादुई CSS: 'View Payment Status' वाले प्राइमरी बटन को विशाल और रंगीन बनाना */
     button[kind="primary"] {
         background: linear-gradient(90deg, #ff416c 0%, #ff4b2b 100%) !important;
         color: white !important;
@@ -87,40 +88,47 @@ aadhar_input = st.text_input("12 अंकों का आधार नंब�
 if st.button("डाटा खोजें (Search)"):
     if aadhar_input and df is not None:
         
-        # 'aadhaarnumber' कॉलम को टारगेट करना
-        target_col = 'aadhaarnumber'
+        # आधार कॉलम खोजना
+        target_col = next((col for col in df.columns if 'aadhar' in col or 'adhar' in col), None)
         
-        if target_col in df.columns:
-            df['temp_aadhar'] = df[target_col].astype(str).str.replace('.0', '', regex=False).str.strip()
+        if target_col:
+            df['temp_aadhar'] = df[target_col].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
             match = df[df['temp_aadhar'] == aadhar_input]
 
             if not match.empty:
                 st.success("🎉 रिकॉर्ड मिल गया!")
                 
-                # डेटा को डिक्शनरी में बदलना
                 row = match.iloc[0].to_dict()
                 
-                # N/A से बचने का फंक्शन
-                def get_val(key):
-                    val = row.get(key)
-                    return str(val).strip() if pd.notna(val) and str(val).strip() != '' else "N/A"
+                # 🛡️ Super Smart Data Finder
+                def get_val(keywords, exclude=None):
+                    exclude = exclude or []
+                    for kw in keywords:
+                        for col, val in row.items():
+                            if kw in col and not any(ex in col for ex in exclude):
+                                if pd.notna(val) and str(val).strip() != '' and str(val).strip().lower() != 'nan':
+                                    return str(val).strip()
+                    return "N/A"
 
-                # 🌟 फिक्स: PDSStatus को इग्नोर करके सीधे सटीक कॉलम से डेटा लेना
+                # 🔒 Bank Account Number Masking (Last 4 Digits only)
+                raw_acc = get_val(['account'])
+                masked_acc = f"********{raw_acc[-4:]}" if raw_acc != "N/A" and len(raw_acc) >= 4 else raw_acc
+
                 st.session_state.search_result = {
-                    'name': get_val('applicantname'),
-                    'father': get_val('fathershusbandname'),
-                    'dob': get_val('dateofbirth'),
-                    'age': get_val('age'),
-                    'category': get_val('category'),
-                    'district': get_val('district'),
-                    'bank': get_val('bankname'),
-                    'acc': get_val('accountno'),
-                    'ifsc': get_val('ifsccode'),
-                    'amount': get_val('amount'),
-                    'sanction_date': get_val('sanctiondate'),
-                    'sanction_no': get_val('sanctionno'),
-                    'ref_no': get_val('mmmsyrefno'),
-                    'status': get_val('paymentstatus').upper() # PDS Status अब कभी नहीं आएगा
+                    'name': get_val(['applicant', 'beneficiary']),
+                    'father': get_val(['father', 'husband']), # पिता का नाम कभी N/A नहीं होगा
+                    'dob': get_val(['dateofbirth', 'dob']),
+                    'age': get_val(['currentage', 'age']), # 💡 Current Age को प्राथमिकता मिलेगी
+                    'category': get_val(['category']),
+                    'district': get_val(['district']),
+                    'bank': get_val(['bank']),
+                    'acc': masked_acc, # 💡 यहाँ मास्क्ड अकाउंट नंबर है
+                    'ifsc': get_val(['ifsc']),
+                    'amount': get_val(['amount']),
+                    'sanction_date': get_val(['sanctiondate', 'date']),
+                    'sanction_no': get_val(['sanctionno']),
+                    'ref_no': get_val(['mmmsyrefno', 'refno']),
+                    'status': get_val(['paymentstatus'], exclude=['pds']).upper() # PDS Status इग्नोर किया गया
                 }
                 st.session_state.show_status = False
             else:
@@ -131,7 +139,7 @@ if st.button("डाटा खोजें (Search)"):
     else:
         st.warning("कृपया आधार नंबर दर्ज करें।")
 
-# 7. रिजल्ट डिस्प्ले (Strictly HTML safe)
+# 7. रिजल्ट डिस्प्ले 
 if st.session_state.search_result is not None:
     res = st.session_state.search_result
     
@@ -146,7 +154,7 @@ if st.session_state.search_result is not None:
         f'</div>'
         f'<div style="flex: 1; min-width: 250px;">'
         f'<div class="detail-label">जन्म तिथि (DOB)</div><div class="detail-value">{res["dob"]}</div>'
-        f'<div class="detail-label">उम्र (Age)</div><div class="detail-value">{res["age"]}</div>'
+        f'<div class="detail-label">वर्तमान आयु (Current Age)</div><div class="detail-value">{res["age"]}</div>'
         f'<div class="detail-label">MMMSY Ref No</div><div class="detail-value">{res["ref_no"]}</div>'
         f'</div>'
         f'</div>'
