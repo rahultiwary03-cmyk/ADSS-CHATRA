@@ -87,7 +87,7 @@ aadhar_input = st.text_input("12 अंकों का आधार नंब�
 if st.button("डाटा खोजें (Search)"):
     if aadhar_input and df is not None:
         
-        # 🛡️ 100% सेफ कॉलम फाइंडर
+        # आधार कॉलम ढूंढना
         target_col = None
         for col in df.columns:
             clean_name = re.sub(r'[^a-zA-Z0-9]', '', str(col)).lower()
@@ -96,50 +96,54 @@ if st.button("डाटा खोजें (Search)"):
                 break
         
         if target_col:
-            try:
-                # सर्च मैचिंग (बिना KeyError के)
-                df['temp_search'] = df[target_col].astype(str).str.replace('.0', '', regex=False).str.strip()
-                match = df[df['temp_search'] == aadhar_input]
+            # 🔥 FIX: Cached Data (df) को बदले बिना एक नई Series में सर्च करना
+            search_series = df[target_col].astype(str).str.replace('.0', '', regex=False).str.strip()
+            match = df[search_series == aadhar_input]
 
-                if not match.empty:
-                    st.success("🎉 रिकॉर्ड मिल गया!")
-                    row = match.iloc[0]
-                    
-                    # 🛡️ नया और सबसे सुरक्षित डेटा निकालने का तरीका (Direct Fetch)
-                    def get_safe_val(keywords):
-                        for col in df.columns:
-                            clean_c = re.sub(r'[^a-zA-Z0-9]', '', str(col)).lower()
-                            for kw in keywords:
-                                if kw in clean_c:
-                                    val = row[col]
-                                    if pd.isna(val) or str(val).strip() == '':
-                                        return "N/A"
-                                    return str(val).strip()
-                        return "N/A"
+            if not match.empty:
+                st.success("🎉 रिकॉर्ड मिल गया!")
+                row = match.iloc[0]
+                
+                # 🛡️ सेफ वैल्यू फ़ेचर
+                def get_safe_val(keywords):
+                    for col in df.columns:
+                        clean_c = re.sub(r'[^a-zA-Z0-9]', '', str(col)).lower()
+                        for kw in keywords:
+                            if kw == clean_c:  # Exact match first priority
+                                val = row[col]
+                                if pd.isna(val) or str(val).strip() == '': return "N/A"
+                                return str(val).strip()
+                    # Partial match second priority
+                    for col in df.columns:
+                        clean_c = re.sub(r'[^a-zA-Z0-9]', '', str(col)).lower()
+                        for kw in keywords:
+                            if kw in clean_c:
+                                val = row[col]
+                                if pd.isna(val) or str(val).strip() == '': return "N/A"
+                                return str(val).strip()
+                    return "N/A"
 
-                    # सभी वैल्यूज़ को सेशन में सेव करना
-                    st.session_state.search_result = {
-                        'name': get_safe_val(['applicant', 'beneficiary']),
-                        'father': get_safe_val(['father', 'husband']),
-                        'dob': get_safe_val(['dob', 'birth']),
-                        'age': get_safe_val(['age']),
-                        'category': get_safe_val(['category']),
-                        'district': get_safe_val(['district']),
-                        'bank': get_safe_val(['bank']),
-                        'acc': get_safe_val(['account']),
-                        'ifsc': get_safe_val(['ifsc']),
-                        'amount': get_safe_val(['amount']),
-                        'sanction_date': get_safe_val(['sanctiondate', 'date']),
-                        'sanction_no': get_safe_val(['sanctionno']),
-                        'ref_no': get_safe_val(['refno', 'mmmsy']),
-                        'status': get_safe_val(['paymentstatus', 'status']).upper()
-                    }
-                    st.session_state.show_status = False
-                else:
-                    st.error("कोई रिकॉर्ड नहीं मिला।")
-                    st.session_state.search_result = None
-            except Exception as e:
-                st.error(f"Error fetching data: {e}")
+                # सभी वैल्यूज़ को सेशन में सेव करना
+                st.session_state.search_result = {
+                    'name': get_safe_val(['applicantname', 'beneficiaryname', 'name']),
+                    'father': get_safe_val(['fathershusbandname', 'fathername', 'husbandname']),
+                    'dob': get_safe_val(['dateofbirth', 'dob']),
+                    'age': get_safe_val(['currentage', 'age']),
+                    'category': get_safe_val(['category']),
+                    'district': get_safe_val(['district']),
+                    'bank': get_safe_val(['bankname', 'bank']),
+                    'acc': get_safe_val(['accountno', 'accountnumber']),
+                    'ifsc': get_safe_val(['ifsccode', 'ifsc']),
+                    'amount': get_safe_val(['amount']),
+                    'sanction_date': get_safe_val(['sanctiondate']),
+                    'sanction_no': get_safe_val(['sanctionno']),
+                    'ref_no': get_safe_val(['mmmsyrefno', 'refno']),
+                    'status': get_safe_val(['paymentstatus', 'status']).upper()
+                }
+                st.session_state.show_status = False
+            else:
+                st.error("कोई रिकॉर्ड नहीं मिला।")
+                st.session_state.search_result = None
         else:
             st.error("शीट में आधार कॉलम नहीं मिला।")
     else:
